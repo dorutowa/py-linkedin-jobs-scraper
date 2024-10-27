@@ -134,7 +134,7 @@ class AuthenticatedStrategy(Strategy):
             while elapsed < timeout:
                 loaded = driver.execute_script(
                     '''
-                        return document.querySelectorAll(arguments[0]).length > 0;                
+                        return document.querySelectorAll(arguments[0]).length > 0;
                     ''',
                     Selectors.jobs)
 
@@ -182,13 +182,13 @@ class AuthenticatedStrategy(Strategy):
 
         try:
             driver.execute_script(
-                '''                    
+                '''
                     const privacyButton = Array.from(document.querySelectorAll(arguments[0]))
                         .find(e => e.innerText === 'Accept');
-                    
+
                     if (privacyButton) {
                         privacyButton.click();
-                    }    
+                    }
                 ''',
                 Selectors.privacyAcceptBtn
             )
@@ -210,7 +210,7 @@ class AuthenticatedStrategy(Strategy):
                     const div = document.querySelector(arguments[0]);
                     if (div) {
                         div.style.display = "none";
-                    }                
+                    }
                 ''',
                 Selectors.chatPanel)
         except:
@@ -379,60 +379,66 @@ class AuthenticatedStrategy(Strategy):
                         Selectors.date])
 
                     job_id, job_link, job_title, job_company, \
-                        job_company_img_link, job_place, job_date, job_is_promoted = \
+                        job_company_img_link, job_place, job_date, job_is_promoted, job_is_viewed = \
                         driver.execute_script(
                             '''
                                 const index = arguments[0];
                                 const job = document.querySelectorAll(arguments[1])[index];
                                 const link = job.querySelector(arguments[2]);
-                                
+
+                                const isViewed = Array.from(job.querySelectorAll('li')).some(e => e.innerText === 'Viewed')? true : false;
+                                if (isViewed) {
+                                    return [null, null, null, null, null, null, null, null, null];
+                                }
+
                                 // Click job link and scroll
                                 link.scrollIntoView();
                                 link.click();
-                                
+
                                 // Extract job link (relative)
                                 const protocol = window.location.protocol + "//";
                                 const hostname = window.location.hostname;
-                                const jobLink = protocol + hostname + link.getAttribute("href");                                                            
-                            
+                                const jobLink = protocol + hostname + link.getAttribute("href");
+
                                 const jobId = job.getAttribute("data-job-id");
-                    
+
                                 let title = job.querySelector(arguments[3]) ?
                                     job.querySelector(arguments[3]).innerText : "";
-                                
+
                                 if (title.includes('\\n')) {
                                     title = title.split('\\n')[1];
                                 }
-                                    
-                                let company = "";                                
-                                const companyElem = job.querySelector(arguments[4]); 
-                                
-                                if (companyElem) {                                    
-                                    company = companyElem.innerText;                                                                        
+
+                                let company = "";
+                                const companyElem = job.querySelector(arguments[4]);
+
+                                if (companyElem) {
+                                    company = companyElem.innerText;
                                 }
-                                
-                                const companyImgLink = job.querySelector("img") ? 
-                                    job.querySelector("img").getAttribute("src") : "";                                                            
-    
+
+                                const companyImgLink = job.querySelector("img") ?
+                                    job.querySelector("img").getAttribute("src") : "";
+
                                 const place = job.querySelector(arguments[5]) ?
                                     job.querySelector(arguments[5]).innerText : "";
-    
+
                                 const date = job.querySelector(arguments[6]) ?
                                     job.querySelector(arguments[6]).getAttribute('datetime') : "";
-                                    
+
                                 const isPromoted = Array.from(job.querySelectorAll('li'))
                                     .find(e => e.innerText === 'Promoted') ? true : false;
-    
+
                                 return [
                                     jobId,
                                     jobLink,
                                     title,
-                                    company,                                    
+                                    company,
                                     companyImgLink,
                                     place,
                                     date,
                                     isPromoted,
-                                ];                                                    
+                                    isViewed,
+                                ];
                             ''',
                             job_index,
                             Selectors.jobs,
@@ -441,6 +447,23 @@ class AuthenticatedStrategy(Strategy):
                             Selectors.company,
                             Selectors.place,
                             Selectors.date)
+
+                    if job_id is None:
+                        info(tag, 'Skipped because viewed')
+                        job_index += 1
+                        metrics.skipped += 1
+
+                        # Try fetching more jobs
+                        if metrics.processed < query.options.limit and job_index == job_tot < pagination_size:
+                            load_jobs_result = AuthenticatedStrategy.__load_jobs(driver, job_tot)
+
+                            if load_jobs_result['success']:
+                                job_tot = load_jobs_result['count']
+
+                        if job_index == job_tot:
+                            break
+                        else:
+                            continue
 
                     # Promoted jobs
                     if query.options.skip_promoted_jobs and job_is_promoted:
@@ -486,7 +509,7 @@ class AuthenticatedStrategy(Strategy):
                     job_company_link = driver.execute_script(
                         '''
                             const el = document.querySelector(arguments[0]);
-                            
+
                             if (el) {
                                 return el.getAttribute("href");
                             }
@@ -506,7 +529,7 @@ class AuthenticatedStrategy(Strategy):
 
                             return [
                                 el.innerText,
-                                el.outerHTML    
+                                el.outerHTML
                             ];
                         ''',
                         Selectors.description)
@@ -517,15 +540,15 @@ class AuthenticatedStrategy(Strategy):
                     job_required_skills = driver.execute_script(
                         r'''
                             const nodes = document.querySelectorAll(arguments[0]);
-                            
+
                             if (!nodes.length) {
                                 return undefined;
-                            }                                                    
-                            
+                            }
+
                             return Array.from(nodes)
                                 .flatMap(e => e.textContent.split(/,|and/))
                                 .map(e => e.replace(/[\n\r\t ]+/g, ' ').trim())
-                                .filter(e => e.length);                            
+                                .filter(e => e.length);
                         ''',
                         Selectors.required_skills)
 
@@ -535,7 +558,7 @@ class AuthenticatedStrategy(Strategy):
                     job_insights = driver.execute_script(
                         r'''
                             const nodes = document.querySelectorAll(arguments[0]);
-                            return Array.from(nodes).map(e => e.textContent.replace(/[\n\r\t ]+/g, ' ').trim());                            
+                            return Array.from(nodes).map(e => e.textContent.replace(/[\n\r\t ]+/g, ' ').trim());
                         ''',
                         Selectors.insights)
 
@@ -623,3 +646,4 @@ class AuthenticatedStrategy(Strategy):
             if not paginate_result['success']:
                 info(tag, "Couldn't find more jobs for the running query")
                 return
+
