@@ -347,3 +347,8 @@ dmypy.json
 .pytype/
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,python,pycharm,node
+
+jobs.csv
+linkedin_cookies.pkl
+
+config.json
