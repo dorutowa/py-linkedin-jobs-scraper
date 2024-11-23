@@ -38,7 +38,8 @@ class LinkedinScraper:
             headless: bool = True,
             max_workers: int = 2,
             slow_mo: float = 0.5,
-            page_load_timeout=20):
+            page_load_timeout=20,
+            cookies=None):
 
         # Input validation
         if chrome_executable_path is not None and not isinstance(chrome_executable_path, str):
@@ -63,6 +64,7 @@ class LinkedinScraper:
         self.headless = headless
         self.slow_mo = slow_mo
         self.page_load_timeout = page_load_timeout
+        self.cookies = cookies
 
         self._pool = ThreadPoolExecutor(max_workers=max_workers)
         self._strategy: Strategy
@@ -74,12 +76,12 @@ class LinkedinScraper:
             Events.END: [],
         }
 
-        if Config.LI_AT_COOKIE:
+        if self.cookies:
             info(f'Using strategy {AuthenticatedStrategy.__name__}')
             self._strategy = AuthenticatedStrategy(self)
         else:
-            info(f'Using strategy {AnonymousStrategy.__name__}')
-            self._strategy = AnonymousStrategy(self)
+            info(f'Using strategy {AnonymousStrategy.__name__}, exiting')
+            exit(0)
 
     @staticmethod
     def __build_search_url(query: Query, location: str = '') -> str:
@@ -189,6 +191,7 @@ class LinkedinScraper:
                     query,
                     location,
                     page_offset,
+                    self.cookies
                 )
 
                 try:

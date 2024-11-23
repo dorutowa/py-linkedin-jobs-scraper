@@ -269,6 +269,7 @@ class AuthenticatedStrategy(Strategy):
         query: Query,
         location: str,
         page_offset: int,
+        cookies: list
     ) -> None:
         """
         Run strategy
@@ -291,6 +292,8 @@ class AuthenticatedStrategy(Strategy):
         # Open main page first to verify/set the session
         debug(tag, f'Opening {HOME_URL}')
         driver.get(HOME_URL)
+        for cookie in cookies:
+            driver.add_cookie(cookie)
         sleep(self.scraper.slow_mo)
 
         if not AuthenticatedStrategy.__is_authenticated_session(driver):
